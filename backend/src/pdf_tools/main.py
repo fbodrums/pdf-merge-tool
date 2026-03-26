@@ -36,6 +36,10 @@ from pdf_tools.api.models import (
     UploadedFileInfo,
     UploadResponse,
 )
+from pdf_tools.auth.dependencies import require_session_user
+from pdf_tools.auth.routes import router as auth_router
+from pdf_tools.auth.session_user import SessionUser
+from pdf_tools.auth.settings import AuthSettings
 from pdf_tools.api.session_store import (
     UPLOAD_DIR,
     StoredFile,
@@ -73,7 +77,17 @@ def get_store() -> SessionStore:
     return store
 
 
-app = FastAPI(title="PDF Merge Tool API", version="1.2.0")
+app = FastAPI(title="PDF Merge Tool API", version="1.3.0")
+
+app.include_router(auth_router)
+
+
+@app.on_event("startup")
+def _validate_auth_settings() -> None:
+    s = AuthSettings.from_env()
+    if s.enabled:
+        s.validate_for_startup()
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -131,6 +145,7 @@ def _validate_single_upload(
 
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_files(
+    _session: Annotated[SessionUser, Depends(require_session_user)],
     files: Annotated[list[UploadFile], File(...)],
     st: Annotated[SessionStore, Depends(get_store)],
 ) -> UploadResponse:
@@ -184,6 +199,7 @@ async def upload_files(
 
 @app.post("/api/unlock", response_model=UnlockResponse)
 def unlock_pdf(
+    _session: Annotated[SessionUser, Depends(require_session_user)],
     body: UnlockRequest,
     st: Annotated[SessionStore, Depends(get_store)],
 ) -> UnlockResponse:
@@ -221,6 +237,7 @@ def unlock_pdf(
 
 @app.post("/api/merge")
 def merge_pdfs(
+    _session: Annotated[SessionUser, Depends(require_session_user)],
     body: MergeRequest,
     st: Annotated[SessionStore, Depends(get_store)],
 ) -> StreamingResponse:

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 import { apiUrl } from '@/lib/apiBase'
 
@@ -15,15 +15,28 @@ export type MergePayload = {
 
 export function useMerge() {
   const [loading, setLoading] = useState(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  const abortMerge = useCallback(() => {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    setLoading(false)
+  }, [])
 
   const merge = useCallback(async (payload: MergePayload): Promise<Blob> => {
+    abortControllerRef.current?.abort()
+    const ac = new AbortController()
+    abortControllerRef.current = ac
     setLoading(true)
     try {
       const res = await fetch(apiUrl('api/merge'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: ac.signal,
+        credentials: 'include',
       })
+      abortControllerRef.current = null
       if (!res.ok) {
         const text = await res.text()
         let detail = text
@@ -37,9 +50,10 @@ export function useMerge() {
       }
       return res.blob()
     } finally {
+      abortControllerRef.current = null
       setLoading(false)
     }
   }, [])
 
-  return { merge, loading }
+  return { merge, loading, abortMerge }
 }

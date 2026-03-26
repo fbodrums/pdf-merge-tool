@@ -14,7 +14,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { apiUrl } from '@/lib/apiBase'
+import { useAppAuth } from '@/components/AuthGate'
+import { apiFetch } from '@/lib/apiClient'
 import { ChangelogSheet } from '@/components/ChangelogSheet'
 import { FileList, type FileRow } from '@/components/FileList'
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -39,7 +40,14 @@ function normalizeOutputName(name: string): string {
   return t.toLowerCase().endsWith('.pdf') ? t : `${t}.pdf`
 }
 
+function isAbortError(e: unknown): boolean {
+  if (e instanceof DOMException && e.name === 'AbortError') return true
+  return e instanceof Error && e.name === 'AbortError'
+}
+
 export default function App() {
+  const appAuth = useAppAuth()
+
   const [wizardStep, setWizardStep] = useState<WizardStep>('select')
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -59,8 +67,8 @@ export default function App() {
     }
   }, [])
 
-  const { uploadFiles, loading: uploadLoading, uploadProgress } = useUpload()
-  const { merge, loading: mergeLoading } = useMerge()
+  const { uploadFiles, loading: uploadLoading, uploadProgress, abortUpload } = useUpload()
+  const { merge, loading: mergeLoading, abortMerge } = useMerge()
 
   const busy = uploadLoading || mergeLoading
 
@@ -91,6 +99,7 @@ export default function App() {
       toast.success('PDFs carregados com sucesso.')
       setWizardStep('configure')
     } catch (e) {
+      if (isAbortError(e)) return
       toast.error(e instanceof Error ? e.message : 'Falha no upload.')
       setWizardStep('select')
     }
@@ -103,7 +112,7 @@ export default function App() {
       return
     }
     try {
-      const res = await fetch(apiUrl('api/unlock'), {
+      const res = await apiFetch('api/unlock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: sessionId, file_id: fileId, password: pwd }),
@@ -168,6 +177,7 @@ export default function App() {
       setWizardStep('result')
       toast.success('PDF gerado. Use o botão abaixo para baixar.')
     } catch (e) {
+      if (isAbortError(e)) return
       toast.error(e instanceof Error ? e.message : 'Erro ao mesclar.')
     }
   }
@@ -179,6 +189,23 @@ export default function App() {
     })
     setWizardStep('configure')
   }, [])
+
+  const handleRestartProcess = useCallback(() => {
+    abortUpload()
+    abortMerge()
+    setResultBlobUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+    setWizardStep('select')
+    setPendingFiles([])
+    setSessionId(null)
+    setRows([])
+    setOutputName('merged.pdf')
+    setUnlockPwd({})
+    setResultFilename('merged.pdf')
+    toast.message('Processo reiniciado.')
+  }, [abortMerge, abortUpload])
 
   const protectedRows = rows.filter((r) => r.password_protected)
 
@@ -192,10 +219,36 @@ export default function App() {
     <AppLayout
       title="PDF Merge Tool"
       description="Extraia páginas de vários PDFs e gere um único arquivo."
-      headerActions={<ChangelogSheet />}
+      headerActions={
+        <>
+          {appAuth ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void appAuth.logout()}
+            >
+              Sair ({appAuth.username})
+            </Button>
+          ) : null}
+          <ChangelogSheet />
+        </>
+      }
     >
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 lg:max-w-3xl">
         <WizardStepper currentStep={wizardStep} />
+
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleRestartProcess}
+            aria-label="Reiniciar o processo desde a seleção de arquivos"
+          >
+            Reiniciar processo
+          </Button>
+        </div>
 
         {wizardStep === 'select' && (
           <Card>

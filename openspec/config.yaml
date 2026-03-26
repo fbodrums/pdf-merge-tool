@@ -78,7 +78,7 @@ architecture:
         pattern: typer-commands
         rules:
             - Comandos devem ser intuitivos e bem documentados
-            - Suportar glob patterns para seleção de arquivos (ex: *.pdf)
+            - 'Suportar glob patterns para seleção de arquivos (ex: *.pdf)'
             - Output padrão em arquivo; permitir configurar nome e destino
             - Mensagens de erro claras e coloridas via rich/typer
 

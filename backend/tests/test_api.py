@@ -1,5 +1,6 @@
 """Testes da API FastAPI."""
 
+import importlib
 from io import BytesIO
 from pathlib import Path
 
@@ -8,12 +9,19 @@ from fastapi.testclient import TestClient
 from pypdf import PdfWriter
 
 import pdf_tools.main as main_mod
-from pdf_tools.main import app
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_for_api_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Evita que `backend/.env` com AUTH_ENABLED=true quebre testes sem sessão."""
+    monkeypatch.setenv("AUTH_ENABLED", "false")
+    importlib.reload(main_mod)
 
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(app)
+    """Usa `main_mod.app` para refletir `importlib.reload` feito em outros testes."""
+    return TestClient(main_mod.app)
 
 
 def _pdf_bytes(pages: int = 2) -> bytes:

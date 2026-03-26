@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 import { apiUrl } from '@/lib/apiBase'
 
@@ -27,8 +27,17 @@ export type UploadProgress = number | null
 export function useUpload() {
   const [loading, setLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>(0)
+  const xhrRef = useRef<XMLHttpRequest | null>(null)
+
+  const abortUpload = useCallback(() => {
+    xhrRef.current?.abort()
+    xhrRef.current = null
+    setLoading(false)
+    setUploadProgress(0)
+  }, [])
 
   const uploadFiles = useCallback(async (files: File[]): Promise<UploadResult> => {
+    xhrRef.current?.abort()
     setLoading(true)
     setUploadProgress(0)
     try {
@@ -37,9 +46,12 @@ export function useUpload() {
 
       const result = await new Promise<UploadResult>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
+        xhrRef.current = xhr
         xhr.open('POST', apiUrl('api/upload'))
+        xhr.withCredentials = true
         xhr.responseType = 'text'
         xhr.onload = () => {
+          xhrRef.current = null
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               resolve(JSON.parse(xhr.responseText) as UploadResult)
@@ -57,7 +69,14 @@ export function useUpload() {
             reject(new Error(detail || `Erro ${xhr.status}`))
           }
         }
-        xhr.onerror = () => reject(new Error('Falha de rede ao enviar arquivos'))
+        xhr.onerror = () => {
+          xhrRef.current = null
+          reject(new Error('Falha de rede ao enviar arquivos'))
+        }
+        xhr.onabort = () => {
+          xhrRef.current = null
+          reject(new DOMException('Upload cancelado', 'AbortError'))
+        }
         xhr.upload.onprogress = (ev) => {
           if (ev.lengthComputable && ev.total > 0) {
             setUploadProgress(Math.round((ev.loaded / ev.total) * 100))
@@ -76,5 +95,5 @@ export function useUpload() {
     }
   }, [])
 
-  return { uploadFiles, loading, uploadProgress }
+  return { uploadFiles, loading, uploadProgress, abortUpload }
 }
