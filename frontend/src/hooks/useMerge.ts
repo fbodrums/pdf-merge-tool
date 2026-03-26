@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react'
 
+import { apiUrl } from '@/lib/apiBase'
+
 export type MergeItem = {
   file_id: string
   pages?: string | null
@@ -17,7 +19,7 @@ export function useMerge() {
   const merge = useCallback(async (payload: MergePayload): Promise<Blob> => {
     setLoading(true)
     try {
-      const res = await fetch('/api/merge', {
+      const res = await fetch(apiUrl('api/merge'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

@@ -6,6 +6,8 @@
 
 import { useCallback, useState } from 'react'
 
+import { apiUrl } from '@/lib/apiBase'
+
 export type UploadedFileInfo = {
   file_id: string
   filename: string
@@ -35,7 +37,7 @@ export function useUpload() {
 
       const result = await new Promise<UploadResult>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
-        xhr.open('POST', '/api/upload')
+        xhr.open('POST', apiUrl('api/upload'))
         xhr.responseType = 'text'
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {

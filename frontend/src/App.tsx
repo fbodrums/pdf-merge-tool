@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { apiUrl } from '@/lib/apiBase'
 import { ChangelogSheet } from '@/components/ChangelogSheet'
 import { FileList, type FileRow } from '@/components/FileList'
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -102,7 +103,7 @@ export default function App() {
       return
     }
     try {
-      const res = await fetch('/api/unlock', {
+      const res = await fetch(apiUrl('api/unlock'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: sessionId, file_id: fileId, password: pwd }),

@@ -4,7 +4,9 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
+// Produção em subpath: VITE_BASE=/pdf-merge-tools/ npm run build
 export default defineConfig({
+  base: process.env.VITE_BASE ?? '/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
