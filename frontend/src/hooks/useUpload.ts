@@ -1,0 +1,78 @@
+/**
+ * Copyright (C) 2026 Fabio Rafael Belliny
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
+
+import { useCallback, useState } from 'react'
+
+export type UploadedFileInfo = {
+  file_id: string
+  filename: string
+  total_pages: number | null
+  size_bytes: number
+  password_protected: boolean
+}
+
+export type UploadResult = {
+  session_id: string
+  files: UploadedFileInfo[]
+}
+
+/** `null` durante o envio quando o progresso não é computável (barra indeterminada). */
+export type UploadProgress = number | null
+
+export function useUpload() {
+  const [loading, setLoading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress>(0)
+
+  const uploadFiles = useCallback(async (files: File[]): Promise<UploadResult> => {
+    setLoading(true)
+    setUploadProgress(0)
+    try {
+      const fd = new FormData()
+      files.forEach((f) => fd.append('files', f))
+
+      const result = await new Promise<UploadResult>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', '/api/upload')
+        xhr.responseType = 'text'
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText) as UploadResult)
+            } catch {
+              reject(new Error('Resposta inválida do servidor'))
+            }
+          } else {
+            let detail = xhr.responseText
+            try {
+              const j = JSON.parse(xhr.responseText) as { detail?: unknown }
+              if (typeof j.detail === 'string') detail = j.detail
+            } catch {
+              /* ignore */
+            }
+            reject(new Error(detail || `Erro ${xhr.status}`))
+          }
+        }
+        xhr.onerror = () => reject(new Error('Falha de rede ao enviar arquivos'))
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable && ev.total > 0) {
+            setUploadProgress(Math.round((ev.loaded / ev.total) * 100))
+          } else {
+            setUploadProgress(null)
+          }
+        }
+        xhr.send(fd)
+      })
+
+      setUploadProgress(100)
+      return result
+    } finally {
+      setLoading(false)
+      setUploadProgress(0)
+    }
+  }, [])
+
+  return { uploadFiles, loading, uploadProgress }
+}

@@ -1,0 +1,159 @@
+schema: spec-driven
+
+# Contexto do projeto para o agente OpenSpec
+context: |
+    ## Projeto: PDF Merge Tool (Ferramenta de Manipulação de PDFs)
+
+    ### Domínio
+    Ferramenta interna para manipulação de arquivos PDF: seleção de múltiplos documentos,
+    extração de páginas específicas (por número, intervalo ou lista) e merge em um único
+    arquivo final. Voltada para usuários que precisam consolidar páginas de diversos PDFs
+    de forma rápida e visual.
+
+    ### Stack Técnico
+    - Backend: Python 3.11+, FastAPI
+    - PDF: pypdf (leitura, extração de páginas, merge)
+    - Frontend: React 19, TypeScript 5, Vite
+    - Estilização: Tailwind CSS 4, shadcn/ui (new-york), Radix UI
+    - Upload/Preview: react-dropzone (upload drag & drop), react-pdf (preview de páginas)
+    - Drag & Drop: @dnd-kit (reordenação de arquivos)
+    - CLI: typer (uso programático, automação e batch processing)
+    - Futuro (extração textual): pdfplumber (opcional, não incluído inicialmente)
+
+    ### Arquitetura
+
+    **Backend (FastAPI)** — backend/
+    - main.py — entrada da aplicação FastAPI
+    - api/routes/ — rotas da API (upload, extract, merge, download)
+    - core/pdf_reader.py — leitura e validação de arquivos PDF
+    - core/pdf_extractor.py — extração de páginas específicas (número, intervalo, lista)
+    - core/pdf_merger.py — merge de páginas extraídas em um único PDF final
+    - core/page_config.py — parsing e validação de configuração de páginas (ex: "1,3,5" ou "1-3")
+    - utils/validators.py — validação de arquivos e parâmetros
+    - utils/file_helpers.py — helpers para manipulação de paths e arquivos temporários
+
+    **Frontend (React)** — frontend/
+    - src/pages/ — páginas da aplicação
+    - src/components/ — componentes React (upload-zone, file-list, page-config, pdf-preview)
+    - src/components/ui/ — shadcn components base
+    - src/hooks/ — hooks para comunicação com a API
+    - src/lib/api/ — client HTTP (axios/fetch)
+
+    **CLI** — cli/
+    - main.py — interface de linha de comando via typer
+
+    ### Fluxo Principal
+    1. Usuário faz upload de múltiplos PDFs (drag & drop ou seleção)
+    2. Para cada PDF, configura quais páginas extrair (padrão: páginas 1 e 2)
+    3. Pode reordenar os arquivos arrastando
+    4. Clica em "Gerar PDF"
+    5. Backend valida, extrai e mescla as páginas
+    6. Usuário faz download do PDF final
+
+# Arquitetura esperada pelo agente
+architecture:
+    backend:
+        pattern: modular-api
+        rules:
+            - Lógica de PDF deve ficar em core/, separada das rotas
+            - Cada módulo (reader, extractor, merger) deve ter responsabilidade única
+            - Rotas devem ser finas: orquestram request → core → response
+            - Erros de PDF (arquivo corrompido, página inexistente) devem usar exceções tipadas com HTTPException
+            - Configuração de páginas deve ser parseada e validada antes da extração
+            - Upload de arquivos deve usar UploadFile do FastAPI com validação de tipo MIME
+            - Arquivos temporários devem ser limpos após processamento
+
+    frontend:
+        pattern: components-driven
+        rules:
+            - Componentes devem ser modulares e reutilizáveis
+            - Comunicação com API via hooks (useUpload, useMerge, etc.)
+            - Estado global mínimo — preferir estado local por componente
+            - Upload deve suportar drag & drop e seleção de arquivos
+            - Feedback visual para progresso, erros e sucesso
+            - UI responsiva com Tailwind CSS
+            - Componentes base via shadcn/ui
+
+    cli:
+        pattern: typer-commands
+        rules:
+            - Comandos devem ser intuitivos e bem documentados
+            - Suportar glob patterns para seleção de arquivos (ex: *.pdf)
+            - Output padrão em arquivo; permitir configurar nome e destino
+            - Mensagens de erro claras e coloridas via rich/typer
+
+# Glossário de domínio
+glossary:
+    PDF: "Portable Document Format — formato de documento portátil"
+    Página: "Unidade individual dentro de um PDF (numeração começa em 1 para o usuário)"
+    Extração: "Processo de selecionar páginas específicas de um PDF"
+    Merge: "Processo de combinar páginas de múltiplos PDFs em um único arquivo"
+    Intervalo: "Seleção contígua de páginas (ex: 1-3 = páginas 1, 2, 3)"
+    Lista: "Seleção não-contígua de páginas (ex: 1, 3, 5)"
+    Configuração de páginas: "Definição de quais páginas extrair de cada arquivo"
+
+# Changelog
+# CHANGELOG.md é exibido para usuários finais — linguagem amigável, sem termos técnicos.
+# CHANGELOG_DEV.md é o registro técnico para desenvolvedores.
+changelog:
+    user_file: CHANGELOG.md
+    dev_file: CHANGELOG_DEV.md
+    user_guidelines: |
+        - Usar linguagem acessível para os usuários da ferramenta
+        - Evitar termos técnicos: slugs, capabilities, endpoints, APIs, backend, frontend
+        - Descrever o benefício ou o que mudou do ponto de vista do usuário
+        - Agrupar por data; usar seções "Novidades" e "Correções" quando aplicável
+
+# Regras por artefato
+rules:
+    proposal:
+        - Manter propostas objetivas e focadas na manipulação de PDF
+        - Incluir seção Non-goals quando relevante
+    specs:
+        - Usar formato Requirement/Scenario com WHEN/THEN/AND
+        - Requisitos devem ser testáveis
+        - Incluir cenários de erro (arquivo inválido, página fora do range, PDF protegido)
+    design:
+        - Documentar decisões técnicas e tradeoffs
+        - Referenciar módulos existentes antes de criar novos
+    tasks:
+        - Quebrar tarefas em blocos pequenos e independentes
+        - Separar backend e frontend quando aplicável
+        - Incluir testes (pytest para backend, vitest para frontend)
+
+# Diretrizes para o agente OpenSpec
+agent_guidelines:
+    backend:
+        - Usar pypdf como única dependência de PDF (não misturar com PyPDF2)
+        - Funções devem ser puras quando possível (entrada → saída, sem side effects)
+        - Validar sempre o número de páginas antes de extrair
+        - Tratar PDFs protegidos por senha com mensagem clara
+        - Usar tipagem (type hints) em todas as funções
+        - Usar Pydantic para validação de request/response
+
+    frontend:
+        - Preferir componentes UI existentes do shadcn
+        - Implementar acesso a dados via hooks
+        - Não chamar APIs diretamente nos componentes
+        - Upload com react-dropzone (drag & drop nativo)
+        - Preview de PDF com react-pdf quando viável
+        - Reordenação de arquivos com @dnd-kit
+
+    cli:
+        - Usar typer com help texts em português
+        - Argumento obrigatório: lista de arquivos PDF
+        - 'Opção --pages para configuração global de páginas (padrão: "1,2")'
+        - 'Opção --output para nome do arquivo de saída (padrão: "output.pdf")'
+
+    general:
+        - Mensagens, labels e textos da interface em português
+        - Código Python documentado com docstrings em português
+        - Testes com pytest (backend) e vitest (frontend)
+        - Python: seguir PEP 8 e usar type hints
+        - TypeScript: seguir convenções ESLint/Prettier
+        - |
+          A cada change arquivado, incrementar a versão seguindo Semantic Versioning (MAJOR.MINOR.PATCH):
+          - PATCH: correções de bugs, ajustes de UI
+          - MINOR: novas funcionalidades retrocompatíveis
+          - MAJOR: breaking changes
+        - para cada arquive, vamos documentar a mudança de versão tambem no package.json, pyproject.toml e README.md
