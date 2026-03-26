@@ -1,8 +1,17 @@
 # Changelog
 
-![Versão](https://img.shields.io/badge/versão-1.1.0-blue)
+![Versão](https://img.shields.io/badge/versão-1.2.0-blue)
 
-## 2026-03-26
+## 1.2.0 — 2026-03-26
+
+### Novidades
+
+- Interface preparada para deploy atrás de um **subpath** (ex.: `/pdf-merge-tools/`): `VITE_BASE` no build e URLs de API com `import.meta.env.BASE_URL`.
+- Uploads temporários por defeito em **`backend/data/uploads`** quando a aplicação corre a partir do repositório; pasta `backend/data/` ignorada pelo Git.
+- Variável **`PDF_TOOLS_UPLOAD_DIR`** para definir outro diretório de uploads (opcional).
+- **`load_dotenv`** executado antes dos imports internos, para `.env` aplicar ao diretório de uploads e restantes opções desde o arranque.
+
+## 1.1.0 — 2026-03-26
 
 ### Novidades
 

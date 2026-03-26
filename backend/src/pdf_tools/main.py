@@ -20,6 +20,10 @@ from pathlib import Path
 from typing import Annotated
 
 from dotenv import load_dotenv
+
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
+load_dotenv(_BACKEND_ROOT / ".env")
+
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -48,9 +52,6 @@ from pdf_tools.exceptions import (
     PasswordProtectedError,
 )
 
-_BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
-load_dotenv(_BACKEND_ROOT / ".env")
-
 MAX_BYTES = 50 * 1024 * 1024
 
 _DEFAULT_CORS_ORIGINS = [
@@ -72,7 +73,7 @@ def get_store() -> SessionStore:
     return store
 
 
-app = FastAPI(title="PDF Merge Tool API", version="0.1.0")
+app = FastAPI(title="PDF Merge Tool API", version="1.2.0")
 
 app.add_middleware(
     CORSMiddleware,

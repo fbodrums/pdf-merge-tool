@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import secrets
 import tempfile
 import time
@@ -11,7 +12,24 @@ from pathlib import Path
 
 TTL_SECONDS = 30 * 60
 
-UPLOAD_DIR = Path(tempfile.gettempdir()) / "pdf_tools_uploads"
+
+def _default_upload_dir() -> Path:
+    """Pasta do repositório `backend/` quando roda a partir do código-fonte; senão /tmp."""
+    here = Path(__file__).resolve()
+    backend_root = here.parent.parent.parent.parent
+    if (backend_root / "pyproject.toml").is_file():
+        return backend_root / "data" / "uploads"
+    return Path(tempfile.gettempdir()) / "pdf_tools_uploads"
+
+
+def _upload_dir() -> Path:
+    raw = os.environ.get("PDF_TOOLS_UPLOAD_DIR", "").strip()
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return _default_upload_dir()
+
+
+UPLOAD_DIR = _upload_dir()
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 

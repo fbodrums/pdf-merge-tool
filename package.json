@@ -1,7 +1,7 @@
 {
   "name": "pdf-tools",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.2.0",
   "license": "GPL-3.0",
   "scripts": {
     "dev": "concurrently -k -n api,web -c blue,magenta \"npm run dev:api\" \"npm run dev:web\"",
