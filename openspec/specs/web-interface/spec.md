@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Interface web (upload, lista, reordenação, merge, responsivo). Sincronizado a partir do change `pdf-merge-tool` e atualizado pelo change `melhorar-layout` (shell e padronização shadcn/ui), pelo change `changelog-follow-app` (entrada ao changelog no cabeçalho), pelo change `upload-wizard-flow` (fluxo em assistente multi-etapas) e pelo change `add-restart-process-button` (reinício do fluxo a qualquer etapa).
+Interface web (upload, lista, reordenação, merge, responsivo). Sincronizado a partir do change `pdf-merge-tool` e atualizado pelo change `melhorar-layout` (shell e padronização shadcn/ui), pelo change `changelog-follow-app` (entrada ao changelog no cabeçalho), pelo change `upload-wizard-flow` (fluxo em assistente multi-etapas), pelo change `add-restart-process-button` (reinício do fluxo a qualquer etapa) e pelo change `enable-ldap-login` (tela de login quando a autenticação estiver obrigatória).
 
 ## Requirements
 
@@ -203,3 +203,22 @@ A interface DEVE oferecer uma ação explícita para **reiniciar o processo** **
 
 - **WHEN** a geração do PDF está em andamento e o usuário aciona "Reiniciar processo"
 - **THEN** a requisição de merge é cancelada no cliente e o estado volta ao início sem aplicar o resultado após o cancelamento
+
+### Requirement: Fluxo de login quando autenticação obrigatória
+
+Quando o backend indicar que a autenticação é obrigatória (por exemplo via endpoint público de configuração), a interface DEVE apresentar uma **tela de login** antes do assistente de merge de PDFs. A tela DEVE coletar credenciais compatíveis com o provedor ativo (para LDAP: identificador de usuário e senha), DEVE exibir mensagens de erro claras em português em caso de falha e DEVE permitir tentar novamente. Após autenticação bem-sucedida, a interface DEVE prosseguir para o fluxo principal existente e DEVE incluir a sessão (cookie ou header, conforme implementação) em todas as chamadas à API da ferramenta.
+
+#### Scenario: Usuário não autenticado vê apenas login
+
+- **WHEN** a autenticação está obrigatória e o usuário ainda não possui sessão válida
+- **THEN** a interface exibe a tela de login e não exibe o assistente de PDFs até que o login seja bem-sucedido
+
+#### Scenario: Sessão válida acessa o assistente
+
+- **WHEN** o usuário conclui o login com sucesso
+- **THEN** a interface apresenta o assistente de merge como hoje, com chamadas autenticadas à API
+
+#### Scenario: Falha de login
+
+- **WHEN** o servidor rejeita as credenciais
+- **THEN** a interface mantém o usuário na tela de login e exibe feedback de erro sem vazar detalhes internos do servidor

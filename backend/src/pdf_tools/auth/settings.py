@@ -18,7 +18,7 @@ def _env_bool(key: str, default: bool = False) -> bool:
 
 
 def _first_nonempty(*keys: str) -> str:
-    """Lê a primeira variável de ambiente definida e não vazia (aliases tipo Laravel)."""
+    """Lê a primeira variável de ambiente definida e não vazia (aliases)."""
     for key in keys:
         raw = os.environ.get(key)
         if raw is not None and str(raw).strip():
@@ -27,10 +27,18 @@ def _first_nonempty(*keys: str) -> str:
 
 
 def _normalize_ldap_domain(raw: str) -> str:
-    """Aceita `spotsul.local` ou `@spotsul.local` (como no Laravel)."""
+    """Aceita `dominio.corp` ou `@dominio.corp` (remove `@` inicial)."""
     t = raw.strip()
     if t.startswith("@"):
         return t[1:].strip()
+    return t
+
+
+def _strip_outer_quotes(s: str) -> str:
+    """Remove aspas duplas envolventes copiadas do `.env` por engano."""
+    t = s.strip()
+    if len(t) >= 2 and t[0] == '"' and t[-1] == '"':
+        return t[1:-1].strip()
     return t
 
 
@@ -58,6 +66,7 @@ class AuthSettings:
     ldap_connect_timeout: float
     ldap_receive_timeout: float
     ldap_auto_referrals: bool
+    ldap_auth_mode: str
 
     @staticmethod
     def from_env() -> AuthSettings:
@@ -74,12 +83,15 @@ class AuthSettings:
 
         ldap_host = _first_nonempty("LDAP_HOST", "LDAP_HOSTNAME")
         ldap_domain = _normalize_ldap_domain(_first_nonempty("LDAP_DOMAIN"))
-        ldap_bind_dn = _first_nonempty("LDAP_BIND_DN")
+        ldap_bind_dn = _strip_outer_quotes(_first_nonempty("LDAP_BIND_DN"))
         ldap_bind_password = _first_nonempty("LDAP_BIND_PASSWORD")
-        ldap_user_base_dn = _first_nonempty("LDAP_USER_BASE_DN", "LDAP_BASE_DN")
-        ldap_user_filter = _first_nonempty("LDAP_USER_FILTER")
+        ldap_user_base_dn = _strip_outer_quotes(_first_nonempty("LDAP_USER_BASE_DN", "LDAP_BASE_DN"))
+        ldap_user_filter = _strip_outer_quotes(_first_nonempty("LDAP_USER_FILTER"))
+        ldap_auth_mode = os.environ.get("LDAP_AUTH_MODE", "search").strip().lower() or "search"
+        if ldap_auth_mode not in ("search", "upn"):
+            ldap_auth_mode = "search"
 
-        # SSL/TLS: nomes deste projeto ou os mesmos do Laravel (LDAP_SSL / LDAP_TLS)
+        # SSL/TLS: nomes deste projeto ou aliases LDAP_SSL / LDAP_TLS
         ldap_use_ssl = _env_bool("LDAP_USE_SSL", False) or _env_bool("LDAP_SSL", False)
         if os.environ.get("LDAP_START_TLS") is not None:
             ldap_start_tls = _env_bool("LDAP_START_TLS", False)
@@ -94,7 +106,7 @@ class AuthSettings:
         else:
             ldap_port = 636 if ldap_use_ssl else 389
 
-        # Laravel: LDAP_TIMEOUT=5, LDAP_OPT_REFERRALS=0 → não seguir referrals
+        # Padrões comuns: timeout 5s; referrals desligados (LDAP_OPT_REFERRALS=0)
         try:
             ldap_connect_timeout = float(os.environ.get("LDAP_TIMEOUT", "5").strip() or "5")
         except ValueError:
@@ -128,6 +140,7 @@ class AuthSettings:
             ldap_connect_timeout=ldap_connect_timeout,
             ldap_receive_timeout=ldap_receive_timeout,
             ldap_auto_referrals=ldap_auto_referrals,
+            ldap_auth_mode=ldap_auth_mode,
         )
 
     def validate_for_startup(self) -> None:
@@ -141,13 +154,22 @@ class AuthSettings:
                 raise ValueError(
                     "LDAP_HOST ou LDAP_HOSTNAME é obrigatório quando AUTH_ENABLED=true e AUTH_PROVIDER=ldap",
                 )
+            if self.ldap_auth_mode == "upn":
+                if not self.ldap_domain:
+                    raise ValueError(
+                        "LDAP_DOMAIN é obrigatório quando LDAP_AUTH_MODE=upn (bind direto usuario@dominio)",
+                    )
+                return
             if not self.ldap_user_base_dn:
                 raise ValueError(
                     "LDAP_USER_BASE_DN ou LDAP_BASE_DN é obrigatório quando AUTH_ENABLED=true e AUTH_PROVIDER=ldap",
                 )
-            if not self.ldap_user_filter or "%(username)s" not in self.ldap_user_filter:
+            if not self.ldap_user_filter:
+                raise ValueError("LDAP_USER_FILTER é obrigatório quando AUTH_ENABLED=true e AUTH_PROVIDER=ldap")
+            ph = ("%(username)s", "%(upn)s", "%(user_principal_name)s")
+            if not any(p in self.ldap_user_filter for p in ph):
                 raise ValueError(
-                    "LDAP_USER_FILTER deve conter o placeholder %(username)s quando AUTH_PROVIDER=ldap",
+                    "LDAP_USER_FILTER deve incluir %(username)s (login curto), %(upn)s ou %(user_principal_name)s",
                 )
         else:
             raise ValueError(f"Provedor de autenticação não suportado: {self.provider_id!r}")

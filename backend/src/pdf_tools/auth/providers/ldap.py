@@ -42,41 +42,59 @@ class LdapAuthProvider(AuthProvider):
         )
 
     def _conn_common(self) -> dict:
-        """Opções alinhadas a LDAP_TIMEOUT / LDAP_OPT_REFERRALS (Laravel)."""
+        """Timeout e referrals (`LDAP_TIMEOUT`, `LDAP_OPT_REFERRALS`).
+
+        `receive_timeout` deve ser inteiro: o ldap3 usa `struct.pack('LL', ...)` em Unix e
+        falha com `struct.error` se for float (ex.: vindo de `float("5")`).
+        """
         return {
-            "receive_timeout": self._s.ldap_receive_timeout,
+            "receive_timeout": int(self._s.ldap_receive_timeout),
             "auto_referrals": self._s.ldap_auto_referrals,
             "version": 3,
         }
 
-    def _effective_username(self, username: str) -> str:
-        """Valor usado no filtro LDAP e como `sub` na sessão.
+    @staticmethod
+    def _short_login(raw: str) -> str:
+        """Login curto para `sAMAccountName` etc.: parte antes de `@` se vier estilo e-mail."""
+        u = raw.strip()
+        if "@" in u:
+            return u.split("@", 1)[0].strip()
+        return u
 
-        Se `LDAP_DOMAIN` estiver definido e o login não contiver `@`,
-        concatena `@domínio` (útil para filtros com userPrincipalName no AD).
-        """
-        u = username.strip()
-        if not self._s.ldap_domain:
-            return u
+    def _upn_login(self, raw: str) -> str:
+        """UPN para filtros com `userPrincipalName`: usa domínio do env se o usuário não informou `@`."""
+        u = raw.strip()
+        short = self._short_login(raw)
         if "@" in u:
             return u
-        return f"{u}@{self._s.ldap_domain}"
+        if self._s.ldap_domain:
+            return f"{short}@{self._s.ldap_domain}"
+        return short
 
-    def _build_filter(self, username_for_filter: str) -> str:
-        safe = escape_filter_chars(username_for_filter)
-        return self._s.ldap_user_filter.replace("%(username)s", safe)
+    def _build_filter(self, raw_username: str) -> str:
+        """Substitui placeholders; `%(username)s` é sempre o login curto (ex.: sAMAccountName no AD)."""
+        short = escape_filter_chars(self._short_login(raw_username))
+        upn = escape_filter_chars(self._upn_login(raw_username))
+        t = self._s.ldap_user_filter
+        t = t.replace("%(username)s", short)
+        t = t.replace("%(upn)s", upn)
+        t = t.replace("%(user_principal_name)s", upn)
+        return t
 
     def authenticate(self, username: str, password: str) -> AuthResult:
         u = username.strip()
         if not u or not password:
             raise LdapInvalidCredentials
 
-        effective = self._effective_username(username)
+        if self._s.ldap_auth_mode == "upn":
+            return self._authenticate_upn(username, password)
+
+        short = self._short_login(username)
 
         server = self._server()
         common = self._conn_common()
 
-        search_filter = self._build_filter(effective)
+        search_filter = self._build_filter(username)
 
         try:
             if self._s.ldap_bind_dn:
@@ -107,6 +125,13 @@ class LdapAuthProvider(AuthProvider):
             raise LdapServiceUnavailable from e
 
         if not conn.entries:
+            logger.warning(
+                "LDAP search retornou 0 entradas (filtro=%s, base=%s). "
+                "Em Active Directory a busca anônima costuma ser bloqueada: configure "
+                "LDAP_BIND_DN + LDAP_BIND_PASSWORD, ou use LDAP_AUTH_MODE=upn com LDAP_DOMAIN.",
+                search_filter,
+                self._s.ldap_user_base_dn,
+            )
             try:
                 conn.unbind()
             except LDAPException:
@@ -157,4 +182,44 @@ class LdapAuthProvider(AuthProvider):
             logger.exception("Erro LDAP no bind do usuário: %s", e)
             raise LdapServiceUnavailable from e
 
-        return AuthResult(subject=effective, provider_id="ldap")
+        return AuthResult(subject=short, provider_id="ldap")
+
+    def _authenticate_upn(self, username: str, password: str) -> AuthResult:
+        """Bind direto como `login@dominio` (UPN), sem busca — típico quando não há conta de serviço."""
+        short = self._short_login(username)
+        if not short or not password:
+            raise LdapInvalidCredentials
+
+        upn = f"{short}@{self._s.ldap_domain}"
+        server = self._server()
+        common = self._conn_common()
+
+        try:
+            conn = Connection(
+                server,
+                user=upn,
+                password=password,
+                auto_bind=False,
+                **common,
+            )
+            conn.open()
+            if self._s.ldap_start_tls and not self._s.ldap_use_ssl:
+                if not conn.start_tls():
+                    logger.warning("LDAP STARTTLS não foi aceito pelo servidor")
+                    raise LdapServiceUnavailable
+            if not conn.bind():
+                try:
+                    conn.unbind()
+                except LDAPException:
+                    pass
+                raise LdapInvalidCredentials
+            conn.unbind()
+        except LdapInvalidCredentials:
+            raise
+        except LdapServiceUnavailable:
+            raise
+        except (LDAPSocketOpenError, LDAPException) as e:
+            logger.exception("Falha no bind UPN LDAP: %s", e)
+            raise LdapServiceUnavailable from e
+
+        return AuthResult(subject=short, provider_id="ldap")

@@ -38,14 +38,15 @@ O servidor carrega automaticamente o arquivo **`backend/.env`** (se existir). Vo
 | `AUTH_JWT_SECRET` | Se `AUTH_ENABLED=true` | Segredo para assinar o token de sessão (JWT). |
 | `AUTH_JWT_EXPIRE_MINUTES` | Não | Validade do token em minutos (padrão 480). |
 | `AUTH_COOKIE_*` | Não | Nome do cookie, `Secure`, `SameSite` — ver `backend/.env.example`. |
-| `LDAP_HOST` / `LDAP_HOSTNAME` | Se LDAP | Servidor LDAP (sem `ldap://`). O mesmo valor do Laravel `LDAP_HOSTNAME` funciona aqui. |
+| `LDAP_HOST` / `LDAP_HOSTNAME` | Se LDAP | Servidor LDAP (sem `ldap://`). `LDAP_HOSTNAME` é alias opcional de `LDAP_HOST`. |
 | `LDAP_PORT` | Não | Padrão **389** ou **636** se SSL. |
-| `LDAP_USER_BASE_DN` / `LDAP_BASE_DN` | Se LDAP | Base da busca (equivalente ao `base_dn` do Laravel). |
+| `LDAP_USER_BASE_DN` / `LDAP_BASE_DN` | Se LDAP | Base da busca. `LDAP_BASE_DN` é alias opcional de `LDAP_USER_BASE_DN`. |
 | `LDAP_DOMAIN` | Não | Opcional; aceita `dominio.corp` ou `@dominio.corp`. Com login sem `@`, o filtro usa `usuario@domínio`. |
-| `LDAP_SSL` / `LDAP_TLS` | Não | Aliases Laravel para `LDAP_USE_SSL` e `LDAP_START_TLS`. |
-| `LDAP_TIMEOUT` | Não | Timeout de conexão/operação em segundos (padrão 5), como no Laravel. |
-| `LDAP_OPT_REFERRALS` | Não | `0` desliga o seguimento de referrals (padrão alinhado ao Laravel). |
-| `LDAP_USER_FILTER` | Se LDAP | Filtro com `%(username)s` — obrigatório na API; no Laravel costuma ser montado pela lib. |
+| `LDAP_SSL` / `LDAP_TLS` | Não | Aliases opcionais de `LDAP_USE_SSL` e `LDAP_START_TLS`. |
+| `LDAP_TIMEOUT` | Não | Timeout de conexão/operação em segundos (padrão 5). |
+| `LDAP_OPT_REFERRALS` | Não | `0` desliga o seguimento de referrals (comportamento padrão). |
+| `LDAP_AUTH_MODE` | Não | `search` (padrão): busca por filtro + bind. `upn`: bind direto `usuario@LDAP_DOMAIN` sem busca — útil quando o AD não permite busca anônima e você ainda não configurou conta de serviço. |
+| `LDAP_USER_FILTER` | Se `search` | Inclua `%(username)s` (login curto), ou `%(upn)s` / `%(user_principal_name)s`. Ignorado em modo `upn`. |
 
 Endpoints públicos relacionados: `GET /api/auth/config`, `GET /api/auth/me`, `POST /api/auth/login`, `POST /api/auth/logout`. Integrações podem enviar o JWT no header `Authorization: Bearer <token>` em vez do cookie.
 

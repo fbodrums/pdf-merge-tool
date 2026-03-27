@@ -144,7 +144,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <CardHeader>
             <CardTitle>Entrar</CardTitle>
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              Esta instância exige autenticação
+              É necessário fazer login
               {config.provider ? ` (${config.provider})` : ''}.
             </p>
           </CardHeader>
