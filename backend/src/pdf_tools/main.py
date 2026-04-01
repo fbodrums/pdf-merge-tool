@@ -56,7 +56,8 @@ from pdf_tools.exceptions import (
     PasswordProtectedError,
 )
 
-MAX_BYTES = 50 * 1024 * 1024
+MAX_UPLOAD_MB = 200
+MAX_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 _DEFAULT_CORS_ORIGINS = [
     "http://localhost:5173",
@@ -111,7 +112,7 @@ def _validate_single_upload(
     if size > MAX_BYTES:
         raise HTTPException(
             status_code=413,
-            detail="Arquivo excede o tamanho máximo de 50MB",
+            detail=f"Arquivo excede o tamanho máximo de {MAX_UPLOAD_MB}MB",
         )
     name = f.filename or "document.pdf"
     data = file_path.read_bytes()
