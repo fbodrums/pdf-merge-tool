@@ -56,7 +56,21 @@ from pdf_tools.exceptions import (
     PasswordProtectedError,
 )
 
-MAX_UPLOAD_MB = 200
+_DEFAULT_MAX_UPLOAD_MB = 200
+
+
+def _max_upload_mb_from_env() -> int:
+    raw = os.environ.get("PDF_TOOLS_MAX_UPLOAD_MB")
+    if raw is None or not raw.strip():
+        return _DEFAULT_MAX_UPLOAD_MB
+    try:
+        n = int(raw.strip(), 10)
+    except ValueError:
+        return _DEFAULT_MAX_UPLOAD_MB
+    return max(1, n)
+
+
+MAX_UPLOAD_MB = _max_upload_mb_from_env()
 MAX_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 _DEFAULT_CORS_ORIGINS = [
